@@ -4104,6 +4104,9 @@ select.input { appearance: none; padding-right: 2.5rem; background: var(--paper)
   var nf = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
   if (!ok) { window.Motion = null; return; }
   G.registerPlugin(ST);
+  /* без «растягивания» времени: при редких кадрах (слабый телефон, окно в фоне) анимации пропускают кадры,
+     а не замедляются — шторка и появление контента не зависают */
+  G.ticker.lagSmoothing(0);
   root.classList.add('has-motion');
   var EASE = 'expo.out';
   var CLEAR = 'transform,opacity,visibility';
@@ -4121,13 +4124,17 @@ select.input { appearance: none; padding-right: 2.5rem; background: var(--paper)
     transition: function (swap) {
       if (busy) { swap(); return; }
       busy = true;
-      G.timeline({ onComplete: function () { busy = false; G.set(cur, { visibility: 'hidden' }); } })
+      var swapped = false;
+      var doSwap = function () { if (swapped) return; swapped = true; entering = true; swap(); entering = false; };
+      var tl = G.timeline({ onComplete: function () { busy = false; G.set(cur, { visibility: 'hidden' }); } })
         .set(cur, { visibility: 'visible' })
         .fromTo(steel, { yPercent: -101 }, { yPercent: 0, duration: .38, ease: 'power3.in' })
         .fromTo(line, { scaleX: 0, transformOrigin: '0% 50%' }, { scaleX: 1, duration: .38, ease: 'power2.inOut' }, 0)
-        .add(function () { entering = true; swap(); entering = false; })
+        .add(doSwap)
         .to(steel, { yPercent: 101, duration: .62, ease: 'power3.inOut' }, '+=.06')
         .to(line, { scaleX: 0, transformOrigin: '100% 50%', duration: .45, ease: 'power2.in' }, '<');
+      /* страховка: если кадры не идут (вкладка в фоне), страница всё равно сменится и шторка уйдёт */
+      setTimeout(function () { if (tl.progress() < 1) { doSwap(); tl.progress(1); } }, 1600);
     }
   };
 
